@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Final
 
-DOMAIN: Final = "proscenic_local"
+DOMAIN: Final = "proscenic_local_vacuum"
 
 # Config keys
 CONF_DEVICE_ID: Final = "device_id"

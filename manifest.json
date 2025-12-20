@@ -1,0 +1,13 @@
+{
+  "domain": "proscenic_local",
+  "name": "Proscenic Local Vacuum",
+  "version": "1.0.0",
+  "integration_type": "device",
+  "documentation": "https://github.com/its-tech-nik/proscenic-local-vacuum",
+  "issue_tracker": "https://github.com/its-tech-nik/proscenic-local-vacuum/issues",
+  "codeowners": ["@its-tech-nik"],
+  "requirements": ["tinytuya>=1.12.0"],
+  "config_flow": true,
+  "iot_class": "local_polling"
+}
+

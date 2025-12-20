@@ -1,0 +1,79 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Proscenic Cloud Login",
+        "description": "Enter your {app_name} app credentials to automatically discover your vacuum and retrieve the local key.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "region": "Region"
+        }
+      },
+      "select_device": {
+        "title": "Select Device",
+        "description": "Select your Proscenic vacuum from the list of discovered devices.",
+        "data": {
+          "device_id": "Device"
+        }
+      },
+      "confirm_ip": {
+        "title": "Confirm IP Address",
+        "description": "We found an IP address for {device_name}. Please confirm or modify it.",
+        "data": {
+          "host": "IP Address"
+        }
+      },
+      "manual_ip": {
+        "title": "Enter IP Address",
+        "description": "We couldn't automatically detect the IP address for {device_name}. Please enter it manually. You can find this in your router's connected devices list.",
+        "data": {
+          "host": "IP Address"
+        }
+      },
+      "options": {
+        "title": "Options",
+        "description": "Configure optional settings for {device_name}.",
+        "data": {
+          "name": "Name",
+          "protocol_version": "Protocol Version",
+          "poll_interval": "Polling Interval (seconds)"
+        }
+      },
+      "manual": {
+        "title": "Manual Configuration",
+        "description": "Enter your vacuum's connection details manually. You can obtain these using the tinytuya wizard or tuya-uncover tool.",
+        "data": {
+          "host": "IP Address",
+          "device_id": "Device ID",
+          "local_key": "Local Key",
+          "name": "Name",
+          "protocol_version": "Protocol Version",
+          "poll_interval": "Polling Interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password",
+      "cannot_connect": "Unable to connect to the vacuum. Please check the IP address and ensure the device is online.",
+      "no_devices": "No devices found in your Proscenic account",
+      "device_not_found": "Selected device not found",
+      "unknown": "An unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This device is already configured",
+      "device_not_found": "Device not found"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Proscenic Options",
+        "data": {
+          "poll_interval": "Polling Interval (seconds)"
+        }
+      }
+    }
+  }
+}
+

@@ -61,6 +61,28 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
+def _reconfigure_connection_schema(entry: config_entries.ConfigEntry) -> vol.Schema:
+    """Schema for editing LAN connection details (device ID is fixed)."""
+    data = entry.data
+    mac_default = data.get(CONF_MAC) or ""
+    return vol.Schema(
+        {
+            vol.Required(CONF_HOST, default=data.get(CONF_HOST, "")): str,
+            vol.Optional(CONF_MAC, default=mac_default): str,
+            vol.Required(CONF_LOCAL_KEY, default=data.get(CONF_LOCAL_KEY, "")): str,
+            vol.Optional(CONF_NAME, default=data.get(CONF_NAME, DEFAULT_NAME)): str,
+            vol.Optional(
+                CONF_PROTOCOL_VERSION,
+                default=data.get(CONF_PROTOCOL_VERSION, DEFAULT_PROTOCOL_VERSION),
+            ): vol.Coerce(float),
+            vol.Optional(
+                CONF_POLL_INTERVAL,
+                default=data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+            ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
+        }
+    )
+
+
 class ProscenicLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Proscenic Local Vacuum."""
 
@@ -316,6 +338,55 @@ class ProscenicLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Let the user change host, keys, MAC, and related settings after setup."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            host = user_input[CONF_HOST]
+            local_key = user_input[CONF_LOCAL_KEY]
+            device_id = entry.data[CONF_DEVICE_ID]
+
+            if await self._test_connection(host, device_id, local_key):
+                await self.async_set_unique_id(entry.unique_id)
+                self._abort_if_unique_id_mismatch()
+
+                mac = _normalize_mac(user_input.get(CONF_MAC))
+                data_updates: dict[str, Any] = {
+                    CONF_HOST: host,
+                    CONF_LOCAL_KEY: local_key,
+                    CONF_MAC: mac,
+                    CONF_NAME: user_input.get(CONF_NAME, entry.data.get(CONF_NAME, DEFAULT_NAME)),
+                    CONF_PROTOCOL_VERSION: user_input.get(
+                        CONF_PROTOCOL_VERSION,
+                        entry.data.get(CONF_PROTOCOL_VERSION, DEFAULT_PROTOCOL_VERSION),
+                    ),
+                    CONF_POLL_INTERVAL: user_input.get(
+                        CONF_POLL_INTERVAL,
+                        entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+                    ),
+                }
+
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates=data_updates,
+                )
+
+            errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_reconfigure_connection_schema(entry),
+            errors=errors,
+            description_placeholders={
+                "device_name": entry.data.get(CONF_NAME, DEFAULT_NAME),
+                "device_id": entry.data.get(CONF_DEVICE_ID, ""),
+            },
+        )
+
     async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -420,28 +491,103 @@ class ProscenicLocalOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle options flow.
+        """Choose between polling settings and full device connection setup."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["poll_interval", "device_connection"],
+        )
 
-        Args:
-            user_input: User input from the form
+    async def async_step_poll_interval(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Adjust polling interval (stored in config entry data)."""
+        entry = self.config_entry
+        errors: dict[str, str] = {}
 
-        Returns:
-            Flow result
-        """
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            interval = user_input[CONF_POLL_INTERVAL]
+            new_data = {**dict(entry.data), CONF_POLL_INTERVAL: interval}
+            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            preserved = dict(entry.options)
+            return self.async_create_entry(title="", data=preserved)
 
         return self.async_show_form(
-            step_id="init",
+            step_id="poll_interval",
             data_schema=vol.Schema(
                 {
                     vol.Optional(
                         CONF_POLL_INTERVAL,
-                        default=self.config_entry.data.get(
+                        default=entry.data.get(
                             CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=10, max=300)),
                 }
             ),
+            errors=errors,
+        )
+
+    async def async_step_device_connection(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Update host, local key, MAC, and related fields (same as Reconfigure)."""
+        entry = self.config_entry
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            host = user_input[CONF_HOST]
+            local_key = user_input[CONF_LOCAL_KEY]
+            device_id = entry.data[CONF_DEVICE_ID]
+
+            test_coordinator = ProscenicLocalCoordinator(
+                self.hass,
+                host=host,
+                device_id=device_id,
+                local_key=local_key,
+                protocol_version=float(
+                    user_input.get(
+                        CONF_PROTOCOL_VERSION,
+                        entry.data.get(CONF_PROTOCOL_VERSION, DEFAULT_PROTOCOL_VERSION),
+                    )
+                ),
+                poll_interval=int(
+                    user_input.get(
+                        CONF_POLL_INTERVAL,
+                        entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+                    )
+                ),
+            )
+            if await test_coordinator.async_test_connection():
+                mac = _normalize_mac(user_input.get(CONF_MAC))
+                new_data = {
+                    **dict(entry.data),
+                    CONF_HOST: host,
+                    CONF_LOCAL_KEY: local_key,
+                    CONF_MAC: mac,
+                    CONF_NAME: user_input.get(
+                        CONF_NAME, entry.data.get(CONF_NAME, DEFAULT_NAME)
+                    ),
+                    CONF_PROTOCOL_VERSION: user_input.get(
+                        CONF_PROTOCOL_VERSION,
+                        entry.data.get(CONF_PROTOCOL_VERSION, DEFAULT_PROTOCOL_VERSION),
+                    ),
+                    CONF_POLL_INTERVAL: user_input.get(
+                        CONF_POLL_INTERVAL,
+                        entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+                    ),
+                }
+                self.hass.config_entries.async_update_entry(entry, data=new_data)
+                preserved = dict(entry.options)
+                return self.async_create_entry(title="", data=preserved)
+
+            errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="device_connection",
+            data_schema=_reconfigure_connection_schema(entry),
+            errors=errors,
+            description_placeholders={
+                "device_name": entry.data.get(CONF_NAME, DEFAULT_NAME),
+                "device_id": entry.data.get(CONF_DEVICE_ID, ""),
+            },
         )
 

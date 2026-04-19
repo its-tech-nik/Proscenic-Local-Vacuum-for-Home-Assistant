@@ -27,7 +27,7 @@ A Home Assistant custom integration for **local control** of Proscenic robot vac
 2. Click on "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
-5. Add this repository URL: `https://github.com/YOUR_USERNAME/proscenic-local-vacuum`
+5. Add this repository URL: `https://github.com/its-tech-nik/Proscenic-Local-Vacuum-for-Home-Assistant`
 6. Select "Integration" as the category
 7. Click "Add"
 8. Search for "Proscenic Local" and install it

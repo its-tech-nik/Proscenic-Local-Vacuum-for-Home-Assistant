@@ -52,6 +52,18 @@
           "protocol_version": "Protocol Version",
           "poll_interval": "Polling Interval (seconds)"
         }
+      },
+      "reconfigure": {
+        "title": "Update device connection",
+        "description": "Update LAN settings for {device_name}. Device ID (unchanged): {device_id}",
+        "data": {
+          "host": "IP Address",
+          "mac": "MAC address (optional)",
+          "local_key": "Local Key",
+          "name": "Name",
+          "protocol_version": "Protocol Version",
+          "poll_interval": "Polling Interval (seconds)"
+        }
       }
     },
     "error": {
@@ -63,14 +75,36 @@
     },
     "abort": {
       "already_configured": "This device is already configured",
-      "device_not_found": "Device not found"
+      "device_not_found": "Device not found",
+      "reconfigure_successful": "Settings were updated successfully",
+      "unique_id_mismatch": "This device does not match the existing configuration"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Proscenic Options",
+        "description": "Choose what you want to change.",
+        "menu_options": {
+          "poll_interval": "Polling interval",
+          "device_connection": "Device connection (IP, keys, MAC)"
+        }
+      },
+      "poll_interval": {
+        "title": "Polling interval",
         "data": {
+          "poll_interval": "Polling Interval (seconds)"
+        }
+      },
+      "device_connection": {
+        "title": "Update device connection",
+        "description": "Update LAN settings for {device_name}. Device ID (unchanged): {device_id}",
+        "data": {
+          "host": "IP Address",
+          "mac": "MAC address (optional)",
+          "local_key": "Local Key",
+          "name": "Name",
+          "protocol_version": "Protocol Version",
           "poll_interval": "Polling Interval (seconds)"
         }
       }

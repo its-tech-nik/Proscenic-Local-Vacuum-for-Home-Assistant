@@ -151,5 +151,5 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         coordinator.note_config_entry_data(dict(entry.data))
         return
 
-    await hass.config_entries.async_reload(entry.entry_id)
+    hass.config_entries.async_schedule_reload(entry.entry_id)
 

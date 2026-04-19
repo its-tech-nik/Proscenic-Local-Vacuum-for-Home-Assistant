@@ -45,6 +45,7 @@
         "description": "Enter your vacuum's connection details manually. You can obtain these using the tinytuya wizard or tuya-uncover tool.",
         "data": {
           "host": "IP Address",
+          "mac": "MAC address (optional, for discovery validation)",
           "device_id": "Device ID",
           "local_key": "Local Key",
           "name": "Name",

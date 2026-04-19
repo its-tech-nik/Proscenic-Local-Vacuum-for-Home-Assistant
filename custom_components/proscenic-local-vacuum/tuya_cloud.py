@@ -307,6 +307,11 @@ class TuyaCloudApi:
                 device_info_raw = dps["34"]
                 device_info = json.loads(base64.b64decode(device_info_raw))
                 device["ip"] = device_info.get("IP")
+                dps_mac = device_info.get("Mac") or device_info.get("MAC")
+                if dps_mac:
+                    device["mac"] = self._format_mac(
+                        str(dps_mac).replace(":", "").replace("-", "")
+                    )
                 device["serial_number"] = device_info.get("Device_SN")
                 device["firmware_version"] = device_info.get("Firmware_Version")
                 _LOGGER.debug("Extracted IP %s from DPS 34", device["ip"])

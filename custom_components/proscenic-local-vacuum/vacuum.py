@@ -11,10 +11,12 @@ from homeassistant.components.vacuum import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, format_mac
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CONF_MAC,
     DEFAULT_NAME,
     DOMAIN,
     DPS_LOCATION,
@@ -179,10 +181,17 @@ class ProscenicLocalVacuum(CoordinatorEntity[ProscenicLocalCoordinator], StateVa
         Returns:
             Device info dictionary
         """
-        return {
+        info: dict[str, Any] = {
             "identifiers": {(DOMAIN, self._entry.entry_id)},
             "name": self._attr_name,
             "manufacturer": "Proscenic",
             "model": "Q8",
         }
+        raw_mac = self._entry.data.get(CONF_MAC)
+        if raw_mac:
+            try:
+                info["connections"] = {(CONNECTION_NETWORK_MAC, format_mac(str(raw_mac)))}
+            except ValueError:
+                pass
+        return info
 

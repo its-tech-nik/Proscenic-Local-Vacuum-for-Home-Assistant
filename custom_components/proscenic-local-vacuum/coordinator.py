@@ -3,13 +3,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import tinytuya
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DEFAULT_POLL_INTERVAL,
@@ -30,6 +34,9 @@ CONNECTION_TIMEOUT = 5.0  # seconds
 COMMAND_RETRY_DELAY = 0.5  # seconds between retries
 MAX_COMMAND_RETRIES = 3
 
+# LAN rediscovery (tinytuya.find_device) can be slow; avoid hammering the network.
+HOST_RESOLVE_COOLDOWN = timedelta(minutes=5)
+
 
 class ProscenicLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator for polling Proscenic Local vacuum data."""
@@ -42,6 +49,9 @@ class ProscenicLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         local_key: str,
         protocol_version: float = DEFAULT_PROTOCOL_VERSION,
         poll_interval: int = DEFAULT_POLL_INTERVAL,
+        *,
+        config_entry: ConfigEntry | None = None,
+        device_mac: str | None = None,
     ) -> None:
         """Initialize the coordinator.
 
@@ -52,6 +62,8 @@ class ProscenicLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             local_key: Tuya local key
             protocol_version: Tuya protocol version (default 3.3)
             poll_interval: Polling interval in seconds
+            config_entry: Config entry to persist updated host (optional)
+            device_mac: Normalized MAC for validating LAN discovery (optional)
         """
         super().__init__(
             hass,
@@ -63,6 +75,12 @@ class ProscenicLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._device_id = device_id
         self._local_key = local_key
         self._protocol_version = protocol_version
+        self._config_entry = config_entry
+        self._device_mac = device_mac
+        self._watched_entry_data: dict[str, Any] | None = (
+            dict(config_entry.data) if config_entry is not None else None
+        )
+        self._last_host_resolve_attempt: datetime | None = None
         self._device: tinytuya.Device | None = None
         self._lock = asyncio.Lock()
 
@@ -78,6 +96,81 @@ class ProscenicLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         device.set_socketTimeout(CONNECTION_TIMEOUT)
         return device
 
+    @property
+    def host(self) -> str:
+        """Current device IP used for local control."""
+        return self._host
+
+    def set_host(self, host: str) -> None:
+        """Apply a new LAN IP (used when config entry data is updated)."""
+        self._host = host
+
+    def note_config_entry_data(self, data: dict[str, Any]) -> None:
+        """Remember config entry data for update-listener comparisons."""
+        self._watched_entry_data = dict(data)
+
+    @property
+    def entry_data_snapshot(self) -> dict[str, Any] | None:
+        """Last known config entry data (for avoiding reload on host-only updates)."""
+        return self._watched_entry_data
+
+    def _mac_matches_discovered(self, discovered_mac: str | None) -> bool:
+        if not self._device_mac or not discovered_mac:
+            return True
+        try:
+            return format_mac(discovered_mac) == self._device_mac
+        except ValueError:
+            return True
+
+    async def _async_try_resolve_host(self) -> bool:
+        """Find the vacuum on the LAN after a failed poll; persist host if it changed.
+
+        Home Assistant does not expose a supported on-demand MAC→IP lookup for
+        arbitrary integrations; Tuya devices respond to tinytuya discovery by ID.
+
+        Returns:
+            True if the host was updated and the caller should retry immediately.
+        """
+        if self._config_entry is None:
+            return False
+
+        now = dt_util.utcnow()
+        if self._last_host_resolve_attempt is not None:
+            elapsed = now - self._last_host_resolve_attempt
+            if elapsed < HOST_RESOLVE_COOLDOWN:
+                return False
+
+        self._last_host_resolve_attempt = now
+
+        def _discover() -> dict[str, Any]:
+            return tinytuya.find_device(dev_id=self._device_id)
+
+        found = await self.hass.async_add_executor_job(_discover)
+        new_ip = found.get("ip") if found else None
+        if not new_ip:
+            _LOGGER.debug("LAN discovery did not find device %s", self._device_id)
+            return False
+
+        payload = found.get("data") if isinstance(found.get("data"), dict) else {}
+        discovered_mac = payload.get("mac") if isinstance(payload, dict) else None
+        if not self._mac_matches_discovered(discovered_mac):
+            _LOGGER.warning(
+                "Ignoring LAN discovery result for %s: MAC mismatch (expected %s, got %s)",
+                self._device_id,
+                self._device_mac,
+                discovered_mac,
+            )
+            return False
+
+        if new_ip == self._host:
+            return False
+
+        _LOGGER.warning("Updating vacuum host after failed poll: %s -> %s", self._host, new_ip)
+        self._host = new_ip
+        new_data = {**self._config_entry.data, CONF_HOST: new_ip}
+        self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
+        return True
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the vacuum.
 
@@ -92,9 +185,21 @@ class ProscenicLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data = await self.hass.async_add_executor_job(self._fetch_status)
                 if data is None:
                     raise UpdateFailed("Failed to get status from vacuum")
+                self._last_host_resolve_attempt = None
                 return data
             except Exception as err:
-                raise UpdateFailed(f"Error communicating with vacuum: {err}") from err
+                first_err = err
+                if await self._async_try_resolve_host():
+                    try:
+                        data = await self.hass.async_add_executor_job(self._fetch_status)
+                        if data is not None:
+                            self._last_host_resolve_attempt = None
+                            return data
+                    except Exception as err2:
+                        first_err = err2
+                raise UpdateFailed(
+                    f"Error communicating with vacuum: {first_err}"
+                ) from first_err
 
     def _fetch_status(self) -> dict[str, Any] | None:
         """Fetch status from the vacuum (blocking).

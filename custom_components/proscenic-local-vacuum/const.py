@@ -9,6 +9,7 @@ DOMAIN: Final = "proscenic_local_vacuum"
 CONF_DEVICE_ID: Final = "device_id"
 CONF_LOCAL_KEY: Final = "local_key"
 CONF_HOST: Final = "host"
+CONF_MAC: Final = "mac"
 CONF_PROTOCOL_VERSION: Final = "protocol_version"
 CONF_POLL_INTERVAL: Final = "poll_interval"
 

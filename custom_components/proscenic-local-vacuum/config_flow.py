@@ -11,10 +11,12 @@ from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PASSWORD
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
+from homeassistant.helpers.device_registry import format_mac
 
 from .const import (
     CONF_DEVICE_ID,
     CONF_LOCAL_KEY,
+    CONF_MAC,
     CONF_POLL_INTERVAL,
     CONF_PROTOCOL_VERSION,
     DEFAULT_NAME,
@@ -30,6 +32,17 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_EMAIL = "email"
 CONF_REGION = "region"
+
+
+def _normalize_mac(mac: str | None) -> str | None:
+    """Normalize MAC for storage and device registry."""
+    if not mac or not str(mac).strip():
+        return None
+    try:
+        return format_mac(str(mac).strip())
+    except ValueError:
+        _LOGGER.warning("Ignoring invalid MAC address: %s", mac)
+        return None
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -51,7 +64,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 class ProscenicLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Proscenic Local Vacuum."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         """Initialize config flow."""
@@ -271,6 +284,7 @@ class ProscenicLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_HOST: self._host,
                     CONF_DEVICE_ID: self._selected_device["id"],
                     CONF_LOCAL_KEY: self._selected_device["local_key"],
+                    CONF_MAC: _normalize_mac(self._selected_device.get("mac")),
                     CONF_NAME: user_input.get(CONF_NAME, self._selected_device.get("name", DEFAULT_NAME)),
                     CONF_PROTOCOL_VERSION: user_input.get(
                         CONF_PROTOCOL_VERSION, DEFAULT_PROTOCOL_VERSION
@@ -331,6 +345,7 @@ class ProscenicLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_HOST: host,
                         CONF_DEVICE_ID: device_id,
                         CONF_LOCAL_KEY: local_key,
+                        CONF_MAC: _normalize_mac(user_input.get(CONF_MAC)),
                         CONF_NAME: user_input.get(CONF_NAME, DEFAULT_NAME),
                         CONF_PROTOCOL_VERSION: user_input.get(
                             CONF_PROTOCOL_VERSION, DEFAULT_PROTOCOL_VERSION
@@ -347,6 +362,7 @@ class ProscenicLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_HOST): str,
+                    vol.Optional(CONF_MAC): str,
                     vol.Required(CONF_DEVICE_ID): str,
                     vol.Required(CONF_LOCAL_KEY): str,
                     vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,

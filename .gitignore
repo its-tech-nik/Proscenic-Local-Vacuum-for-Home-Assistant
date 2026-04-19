@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Poetry
+.poetry/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Sensitive data
+credentials.json
+*.key
+*.secret
+
+# Logs and captures
+*.log
+dps_changes.json
+scenario_log.json
+snapshot.json
+
+# System
+.DS_Store
+Thumbs.db
+

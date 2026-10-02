@@ -57,6 +57,8 @@ A Home Assistant custom integration for **local control** of Proscenic robot vac
 
 The app credentials are only used during setup to fetch the local key; they are not stored.
 
+Before the connection settings are shown, Home Assistant listens for Tuya devices on your network for up to 12 seconds. The devices it finds are offered in the IP address dropdown, and your vacuum is pre-selected if it was found (the IP stored in the Tuya cloud can be out of date). This requires Home Assistant to be on the same network segment as the vacuum, since discovery uses UDP broadcasts. The manual and reconfigure forms use the same scan.
+
 ### Manual Configuration
 
 If you already have your device credentials, choose **Enter device ID and local key manually** and enter:

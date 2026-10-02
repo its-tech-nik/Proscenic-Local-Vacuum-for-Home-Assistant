@@ -1,6 +1,7 @@
 """Config flow for Proscenic Local Vacuum integration."""
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 import logging
 from typing import Any
@@ -33,7 +34,7 @@ from .const import (
     PROTOCOL_VERSIONS,
     TUYA_REGIONS,
 )
-from .device import async_test_connection
+from .device import DiscoveredDevice, async_scan_lan, async_test_connection
 from .tuya_cloud import InvalidAuthentication, TuyaCloudApi, TuyaCloudApiError
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,9 +81,50 @@ def _normalize_mac(mac: str | None) -> str | None:
         return None
 
 
+def _host_selector(
+    discovered: list[DiscoveredDevice],
+    device_id: str | None,
+    fallback: tuple[str | None, str] | None = None,
+) -> selector.SelectSelector:
+    """Offer the Tuya devices found on the LAN, while still allowing a typed IP.
+
+    Args:
+        discovered: Devices found by the LAN scan
+        device_id: The device being configured, if known; it is labelled as such
+        fallback: (ip, description) for a known IP that should stay selectable
+    """
+    options = [
+        selector.SelectOptionDict(
+            value=device.ip,
+            label=(
+                f"{device.ip} (this vacuum, found on your network)"
+                if device.device_id == device_id
+                else f"{device.ip} (Tuya device {device.device_id})"
+            ),
+        )
+        for device in discovered
+    ]
+    if fallback is not None:
+        fallback_ip, description = fallback
+        if fallback_ip and all(device.ip != fallback_ip for device in discovered):
+            options.append(
+                selector.SelectOptionDict(
+                    value=fallback_ip, label=f"{fallback_ip} ({description})"
+                )
+            )
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=options,
+            custom_value=True,
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
 def _connection_schema(
     defaults: Mapping[str, Any],
     *,
+    host_selector: selector.SelectSelector,
     credentials: bool,
     device_id: bool = False,
     poll_interval: bool = False,
@@ -91,12 +133,15 @@ def _connection_schema(
 
     Args:
         defaults: Values to pre-fill
+        host_selector: Selector for the IP address field
         credentials: Ask for MAC and local key (not needed when they come from the cloud)
         device_id: Ask for the Tuya device ID (manual setup only)
         poll_interval: Ask for the polling interval (initial setup only)
     """
     schema: dict[vol.Marker, Any] = {
-        vol.Required(CONF_HOST, default=defaults.get(CONF_HOST) or ""): str,
+        vol.Required(
+            CONF_HOST, description={"suggested_value": defaults.get(CONF_HOST)}
+        ): host_selector,
     }
     if credentials:
         schema[
@@ -137,6 +182,56 @@ class ProscenicLocalConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize config flow."""
         self._devices: list[dict[str, Any]] = []
         self._selected_device: dict[str, Any] | None = None
+        self._discovered: list[DiscoveredDevice] | None = None
+        self._scan_task: asyncio.Task[list[DiscoveredDevice]] | None = None
+        self._step_after_scan = ""
+
+    async def _async_start_scan(
+        self, next_step_id: str, device_id: str | None
+    ) -> ConfigFlowResult:
+        """Scan the LAN in the background, then continue with next_step_id."""
+        self._step_after_scan = next_step_id
+        self._scan_task = self.hass.async_create_task(
+            async_scan_lan(self.hass, device_id)
+        )
+        if self._scan_task.done():
+            # Returning "progress done" without a progress step would replay the
+            # previous step's input into the next one.
+            self._discovered = self._scan_task.result()
+            self._scan_task = None
+            return await getattr(self, f"async_step_{next_step_id}")()
+        return await self.async_step_scan()
+
+    async def async_step_scan(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show a progress spinner while the LAN scan runs."""
+        if self._scan_task is None:
+            return self.async_abort(reason="unknown")
+        if not self._scan_task.done():
+            return self.async_show_progress(
+                step_id="scan",
+                progress_action="scan",
+                progress_task=self._scan_task,
+            )
+        self._discovered = self._scan_task.result()
+        self._scan_task = None
+        return self.async_show_progress_done(next_step_id=self._step_after_scan)
+
+    def _discovered_device(self, device_id: str) -> DiscoveredDevice | None:
+        return next(
+            (d for d in self._discovered or [] if d.device_id == device_id), None
+        )
+
+    def _discovered_defaults(self, device_id: str) -> dict[str, Any]:
+        """Host and protocol version as seen by the LAN scan, if the device was found."""
+        device = self._discovered_device(device_id)
+        if device is None:
+            return {}
+        defaults: dict[str, Any] = {CONF_HOST: device.ip}
+        if device.protocol_version in PROTOCOL_VERSIONS:
+            defaults[CONF_PROTOCOL_VERSION] = device.protocol_version
+        return defaults
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -222,6 +317,8 @@ class ProscenicLocalConfigFlow(ConfigFlow, domain=DOMAIN):
         device = self._selected_device
         if device is None:
             return self.async_abort(reason="device_not_found")
+        if self._discovered is None:
+            return await self._async_start_scan("device", device["id"])
 
         errors: dict[str, str] = {}
 
@@ -241,11 +338,19 @@ class ProscenicLocalConfigFlow(ConfigFlow, domain=DOMAIN):
         defaults = user_input or {
             CONF_HOST: device.get("ip"),
             CONF_NAME: device.get("name") or DEFAULT_NAME,
+            **self._discovered_defaults(device["id"]),
         }
         return self.async_show_form(
             step_id="device",
             data_schema=_connection_schema(
-                defaults, credentials=False, poll_interval=True
+                defaults,
+                host_selector=_host_selector(
+                    self._discovered,
+                    device["id"],
+                    (device.get("ip"), "last IP reported by the Tuya cloud"),
+                ),
+                credentials=False,
+                poll_interval=True,
             ),
             errors=errors,
             description_placeholders={"device_name": device.get("name", DEFAULT_NAME)},
@@ -255,6 +360,9 @@ class ProscenicLocalConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Set up a device with a known device ID and local key."""
+        if self._discovered is None:
+            return await self._async_start_scan("manual", None)
+
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -280,7 +388,11 @@ class ProscenicLocalConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="manual",
             data_schema=_connection_schema(
-                user_input or {}, credentials=True, device_id=True, poll_interval=True
+                user_input or {},
+                host_selector=_host_selector(self._discovered, None),
+                credentials=True,
+                device_id=True,
+                poll_interval=True,
             ),
             errors=errors,
         )
@@ -290,6 +402,10 @@ class ProscenicLocalConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Let the user change host, local key, MAC, and protocol after setup."""
         entry = self._get_reconfigure_entry()
+        device_id = entry.data[CONF_DEVICE_ID]
+        if self._discovered is None:
+            return await self._async_start_scan("reconfigure", device_id)
+
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -297,7 +413,7 @@ class ProscenicLocalConfigFlow(ConfigFlow, domain=DOMAIN):
             if await async_test_connection(
                 self.hass,
                 user_input[CONF_HOST],
-                entry.data[CONF_DEVICE_ID],
+                device_id,
                 user_input[CONF_LOCAL_KEY],
                 protocol_version,
             ):
@@ -313,14 +429,26 @@ class ProscenicLocalConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
             errors["base"] = "cannot_connect"
 
-        defaults = user_input or {**entry.data, CONF_NAME: entry.title}
+        defaults = user_input or {
+            **entry.data,
+            CONF_NAME: entry.title,
+            **self._discovered_defaults(device_id),
+        }
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_connection_schema(defaults, credentials=True),
+            data_schema=_connection_schema(
+                defaults,
+                host_selector=_host_selector(
+                    self._discovered,
+                    device_id,
+                    (entry.data[CONF_HOST], "currently configured"),
+                ),
+                credentials=True,
+            ),
             errors=errors,
             description_placeholders={
                 "device_name": entry.title,
-                "device_id": entry.data[CONF_DEVICE_ID],
+                "device_id": device_id,
             },
         )
 

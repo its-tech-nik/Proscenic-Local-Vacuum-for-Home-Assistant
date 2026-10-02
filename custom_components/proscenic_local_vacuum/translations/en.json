@@ -27,7 +27,7 @@
       },
       "device": {
         "title": "Connection settings",
-        "description": "Confirm the connection settings for {device_name}. If the IP address is empty, look it up in your router's list of connected devices.",
+        "description": "Confirm the connection settings for {device_name}. Tuya devices found on your network are listed under IP Address; you can also type an address, for example from your router's list of connected devices.",
         "data": {
           "host": "IP Address",
           "name": "Name",
@@ -37,7 +37,7 @@
       },
       "manual": {
         "title": "Manual Configuration",
-        "description": "Enter your vacuum's connection details manually. You can obtain the device ID and local key with the tinytuya wizard.",
+        "description": "Enter your vacuum's connection details manually. Tuya devices found on your network are listed under IP Address together with their device ID. You can obtain the local key with the tinytuya wizard.",
         "data": {
           "host": "IP Address",
           "mac": "MAC address (optional, for discovery validation)",
@@ -50,7 +50,7 @@
       },
       "reconfigure": {
         "title": "Update device connection",
-        "description": "Update LAN settings for {device_name}. Device ID (unchanged): {device_id}",
+        "description": "Update LAN settings for {device_name}. Device ID (unchanged): {device_id}. Tuya devices found on your network are listed under IP Address.",
         "data": {
           "host": "IP Address",
           "mac": "MAC address (optional)",
@@ -59,6 +59,9 @@
           "protocol_version": "Protocol Version"
         }
       }
+    },
+    "progress": {
+      "scan": "Scanning your network for Tuya devices. This takes up to 12 seconds."
     },
     "error": {
       "invalid_auth": "Invalid email or password",

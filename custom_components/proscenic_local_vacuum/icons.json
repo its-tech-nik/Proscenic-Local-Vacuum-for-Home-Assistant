@@ -1,0 +1,21 @@
+{
+  "entity": {
+    "sensor": {
+      "clean_time": {
+        "default": "mdi:timer"
+      },
+      "clean_area": {
+        "default": "mdi:texture-box"
+      },
+      "main_brush_remaining": {
+        "default": "mdi:brush"
+      },
+      "side_brush_remaining": {
+        "default": "mdi:brush"
+      },
+      "filter_remaining": {
+        "default": "mdi:air-filter"
+      }
+    }
+  }
+}

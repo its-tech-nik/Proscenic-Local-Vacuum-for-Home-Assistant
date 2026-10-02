@@ -19,6 +19,10 @@ A Home Assistant custom integration for **local control** of Proscenic robot vac
 - Proscenic Q8 Robot Vacuum
 - Other Proscenic vacuums using Tuya protocol (may work, not tested)
 
+## Requirements
+
+- Home Assistant 2025.1 or newer
+
 ## Installation
 
 ### HACS (Recommended)
@@ -36,7 +40,7 @@ A Home Assistant custom integration for **local control** of Proscenic robot vac
 ### Manual Installation
 
 1. Download the latest release from GitHub
-2. Copy the folder to your Home Assistant's `custom_components` directory
+2. Copy `custom_components/proscenic_local_vacuum` into your Home Assistant's `custom_components` directory
 3. Restart Home Assistant
 
 ## Configuration
@@ -46,38 +50,35 @@ A Home Assistant custom integration for **local control** of Proscenic robot vac
 1. Go to **Settings** → **Devices & Services**
 2. Click **+ Add Integration**
 3. Search for "Proscenic Local"
-4. Follow the setup wizard:
-   - Enter your Proscenic app credentials (email/password)
-   - Select your region
+4. Choose **Log in with the Proscenic app account** and follow the wizard:
+   - Enter your Proscenic app credentials (email/password) and region
    - Select your vacuum from the discovered devices
-   - Confirm or enter the IP address
-   - Optionally configure polling interval
+   - Confirm or enter the IP address, name, protocol version and polling interval
+
+The app credentials are only used during setup to fetch the local key; they are not stored.
 
 ### Manual Configuration
 
-If you already have your device credentials, you can configure manually:
+If you already have your device credentials, choose **Enter device ID and local key manually** and enter:
 
-1. During setup, select "Manual Configuration"
-2. Enter:
-   - **IP Address**: Your vacuum's local IP (e.g., `192.168.1.100`)
-   - **Device ID**: Tuya device ID
-   - **Local Key**: Tuya local key
-   - **Name**: Display name (optional)
-   - **Protocol Version**: Usually `3.3` (default)
-   - **Polling Interval**: How often to poll status (default: 30 seconds)
+- **IP Address**: Your vacuum's local IP (e.g., `192.168.1.100`)
+- **MAC address** (optional): Used to validate the device when its IP changes
+- **Device ID**: Tuya device ID
+- **Local Key**: Tuya local key
+- **Name**: Display name
+- **Protocol Version**: Usually `3.3` (default)
+- **Polling Interval**: How often to poll status (default: 30 seconds)
+
+### Changing settings later
+
+- **Polling interval**: **Configure** on the integration entry.
+- **IP address, local key, MAC, protocol version, name**: **Reconfigure** from the integration entry's menu.
+
+If the vacuum's IP changes, the integration tries to rediscover it on the LAN automatically (at most every 5 minutes).
 
 ## Obtaining Device Credentials
 
 If you need to obtain your device credentials manually:
-
-### Using tuya-uncover (included)
-
-```bash
-cd tuya-uncover
-python uncover.py YOUR_EMAIL YOUR_PASSWORD -v proscenic -r eu
-```
-
-This will output your device ID and local key.
 
 ### Using tinytuya wizard
 
@@ -99,21 +100,27 @@ The vacuum entity supports the following services:
 | `vacuum.return_to_base` | Return to charging dock                  |
 | `vacuum.set_fan_speed`  | Set suction power (gentle/normal/strong) |
 
-## Attributes
+## Entities
 
-The vacuum entity exposes these attributes:
+Entity IDs depend on the name you give the device; the examples below assume the name `Proscenic`.
 
-| Attribute            | Description                            |
-| -------------------- | -------------------------------------- |
-| `battery_level`      | Battery percentage (0-100)             |
-| `fan_speed`          | Current suction level                  |
-| `clean_time_minutes` | Current session cleaning time          |
-| `clean_area_m2`      | Current session cleaning area          |
-| `location`           | Current location (e.g., charging_base) |
-| `main_brush_life`    | Main brush remaining life %            |
-| `side_brush_life`    | Side brush remaining life              |
-| `filter_life`        | Filter remaining life                  |
-| `raw_status`         | Raw device status                      |
+| Entity                                 | Description                              |
+| -------------------------------------- | ---------------------------------------- |
+| `vacuum.proscenic`                     | The vacuum itself                        |
+| `sensor.proscenic_battery`             | Battery percentage (0-100)               |
+| `sensor.proscenic_clean_time`          | Current session cleaning time (minutes)  |
+| `sensor.proscenic_clean_area`          | Current session cleaning area (m²)       |
+| `sensor.proscenic_main_brush_remaining`| Main brush remaining life (hours)        |
+| `sensor.proscenic_side_brush_remaining`| Side brush remaining life (hours)        |
+| `sensor.proscenic_filter_remaining`    | Filter remaining life (hours)            |
+
+The vacuum entity also exposes these attributes:
+
+| Attribute    | Description                            |
+| ------------ | -------------------------------------- |
+| `fan_speed`  | Current suction level                  |
+| `location`   | Current location (e.g., charging_base) |
+| `raw_status` | Raw device status                      |
 
 ## Automation Examples
 
@@ -129,7 +136,7 @@ automation:
     action:
       - service: vacuum.start
         target:
-          entity_id: vacuum.proscenic_local
+          entity_id: vacuum.proscenic
 ```
 
 ### Return to dock at specific time
@@ -144,12 +151,12 @@ automation:
       - condition: not
         conditions:
           - condition: state
-            entity_id: vacuum.proscenic_local
+            entity_id: vacuum.proscenic
             state: "docked"
     action:
       - service: vacuum.return_to_base
         target:
-          entity_id: vacuum.proscenic_local
+          entity_id: vacuum.proscenic
 ```
 
 ### Notify when battery is low
@@ -159,14 +166,13 @@ automation:
   - alias: "Vacuum battery low notification"
     trigger:
       - platform: numeric_state
-        entity_id: vacuum.proscenic_local
-        attribute: battery_level
+        entity_id: sensor.proscenic_battery
         below: 20
     action:
       - service: notify.mobile_app
         data:
           title: "Vacuum Battery Low"
-          message: "Battery is at {{ state_attr('vacuum.proscenic_local', 'battery_level') }}%"
+          message: "Battery is at {{ states('sensor.proscenic_battery') }}%"
 ```
 
 ## Troubleshooting
@@ -176,11 +182,12 @@ automation:
 1. Ensure your vacuum is connected to the same network as Home Assistant
 2. Check that the IP address is correct
 3. Verify the device ID and local key are correct
-4. Make sure port 6668 is not blocked by your firewall
+4. Try a different protocol version (3.3 is the most common; newer devices may use 3.4 or 3.5)
+5. Make sure TCP port 6668 is not blocked by your firewall
 
 ### Device goes offline
 
-The Tuya protocol uses UDP communication which can sometimes be unreliable. Try:
+Tuya devices on Wi-Fi can drop off the network intermittently. Try:
 
 - Increasing the polling interval
 - Ensuring strong WiFi signal to the vacuum
@@ -193,8 +200,8 @@ The Tuya protocol uses UDP communication which can sometimes be unreliable. Try:
 
 ## Technical Details
 
-- **Protocol**: Tuya Local Protocol v3.3
-- **Communication**: UDP port 6668
+- **Protocol**: Tuya Local Protocol (v3.3 by default, 3.1–3.5 selectable)
+- **Communication**: TCP port 6668 for control; UDP broadcasts for LAN rediscovery
 - **Polling**: Configurable (default 30 seconds)
 - **Dependencies**: tinytuya >= 1.12.0
 

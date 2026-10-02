@@ -1,0 +1,104 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Proscenic vacuum",
+        "description": "Choose how to find your vacuum's local key.",
+        "menu_options": {
+          "cloud": "Log in with the Proscenic app account",
+          "manual": "Enter device ID and local key manually"
+        }
+      },
+      "cloud": {
+        "title": "Proscenic Cloud Login",
+        "description": "Enter your {app_name} app credentials to automatically discover your vacuum and retrieve the local key. The credentials are only used during setup and are not stored.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "region": "Region"
+        }
+      },
+      "select_device": {
+        "title": "Select Device",
+        "description": "Select your Proscenic vacuum from the list of discovered devices.",
+        "data": {
+          "device_id": "Device"
+        }
+      },
+      "device": {
+        "title": "Connection settings",
+        "description": "Confirm the connection settings for {device_name}. If the IP address is empty, look it up in your router's list of connected devices.",
+        "data": {
+          "host": "IP Address",
+          "name": "Name",
+          "protocol_version": "Protocol Version",
+          "poll_interval": "Polling Interval (seconds)"
+        }
+      },
+      "manual": {
+        "title": "Manual Configuration",
+        "description": "Enter your vacuum's connection details manually. You can obtain the device ID and local key with the tinytuya wizard.",
+        "data": {
+          "host": "IP Address",
+          "mac": "MAC address (optional, for discovery validation)",
+          "device_id": "Device ID",
+          "local_key": "Local Key",
+          "name": "Name",
+          "protocol_version": "Protocol Version",
+          "poll_interval": "Polling Interval (seconds)"
+        }
+      },
+      "reconfigure": {
+        "title": "Update device connection",
+        "description": "Update LAN settings for {device_name}. Device ID (unchanged): {device_id}",
+        "data": {
+          "host": "IP Address",
+          "mac": "MAC address (optional)",
+          "local_key": "Local Key",
+          "name": "Name",
+          "protocol_version": "Protocol Version"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password",
+      "cannot_connect": "Unable to connect. Please check the connection details and ensure the device is online.",
+      "no_devices": "No devices found in your Proscenic account",
+      "unknown": "An unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This device is already configured",
+      "device_not_found": "Device not found",
+      "reconfigure_successful": "Settings were updated successfully"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Proscenic Options",
+        "data": {
+          "poll_interval": "Polling Interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "clean_time": {
+        "name": "Clean time"
+      },
+      "clean_area": {
+        "name": "Clean area"
+      },
+      "main_brush_remaining": {
+        "name": "Main brush remaining"
+      },
+      "side_brush_remaining": {
+        "name": "Side brush remaining"
+      },
+      "filter_remaining": {
+        "name": "Filter remaining"
+      }
+    }
+  }
+}

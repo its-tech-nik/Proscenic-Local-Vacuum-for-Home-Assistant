@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import base64
-import functools
 import hashlib
 import hmac
 import json
@@ -104,7 +103,7 @@ class TuyaCloudApi:
 
         params["sign"] = self._sign({**params, **data})
 
-        _LOGGER.debug("Request: params %s", params)
+        _LOGGER.debug("Tuya Cloud request: %s", action)
 
         response = self._session.post(
             self._endpoint,
@@ -113,11 +112,7 @@ class TuyaCloudApi:
             headers=headers,
             timeout=30,
         )
-        result = self._handle(response.json())
-
-        _LOGGER.debug("Result: %s", result)
-
-        return result
+        return self._handle(response.json())
 
     def _sign(self, data: dict[str, str]) -> str:
         """Sign the API request.
@@ -219,14 +214,6 @@ class TuyaCloudApi:
         return self._plain_rsa_encrypt(
             int(modulus), int(exponent), passwd_hash
         ).hex()
-
-    async def async_login(self) -> None:
-        """Login to Tuya Cloud (async wrapper).
-
-        This is a blocking call wrapped for async context.
-        Should be called with async_add_executor_job.
-        """
-        self.login()
 
     def login(self) -> None:
         """Login to Tuya Cloud.

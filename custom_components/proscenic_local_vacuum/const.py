@@ -8,7 +8,6 @@ DOMAIN: Final = "proscenic_local_vacuum"
 # Config keys
 CONF_DEVICE_ID: Final = "device_id"
 CONF_LOCAL_KEY: Final = "local_key"
-CONF_HOST: Final = "host"
 CONF_MAC: Final = "mac"
 CONF_PROTOCOL_VERSION: Final = "protocol_version"
 CONF_POLL_INTERVAL: Final = "poll_interval"
@@ -16,7 +15,10 @@ CONF_POLL_INTERVAL: Final = "poll_interval"
 # Default values
 DEFAULT_PROTOCOL_VERSION: Final = 3.3
 DEFAULT_POLL_INTERVAL: Final = 30  # seconds
+MIN_POLL_INTERVAL: Final = 10  # seconds
+MAX_POLL_INTERVAL: Final = 300  # seconds
 DEFAULT_NAME: Final = "Proscenic Local Vacuum"
+PROTOCOL_VERSIONS: Final = ["3.1", "3.2", "3.3", "3.4", "3.5"]
 
 # DPS (Data Points) mappings from protocol.md
 # Core Control DPS

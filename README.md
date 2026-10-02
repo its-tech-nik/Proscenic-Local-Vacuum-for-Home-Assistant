@@ -27,6 +27,12 @@ A Home Assistant custom integration for **local control** of Proscenic robot vac
 
 ### HACS (Recommended)
 
+Click the button to open this repository in HACS on your Home Assistant instance, then click **Download** and restart Home Assistant:
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=its-tech-nik&repository=Proscenic-Local-Vacuum-for-Home-Assistant&category=integration)
+
+Or add it manually:
+
 1. Open HACS in Home Assistant
 2. Click on "Integrations"
 3. Click the three dots in the top right corner
@@ -46,6 +52,10 @@ A Home Assistant custom integration for **local control** of Proscenic robot vac
 ## Configuration
 
 ### UI Configuration (Recommended)
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=proscenic_local_vacuum)
+
+Or:
 
 1. Go to **Settings** → **Devices & Services**
 2. Click **+ Add Integration**

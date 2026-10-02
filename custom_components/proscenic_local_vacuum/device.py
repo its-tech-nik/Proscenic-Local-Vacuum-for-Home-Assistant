@@ -29,6 +29,7 @@ class DiscoveredDevice:
     ip: str
     device_id: str
     protocol_version: str | None
+    mac: str | None = None
 
 
 def scan_lan(device_id: str | None = None) -> list[DiscoveredDevice]:
@@ -49,6 +50,7 @@ def scan_lan(device_id: str | None = None) -> list[DiscoveredDevice]:
             ip=info["ip"],
             device_id=gw_id,
             protocol_version=str(info["version"]) if info.get("version") else None,
+            mac=info.get("mac") or None,
         )
         for gw_id, info in found.items()
         if info.get("origin") == "broadcast" and info.get("ip")

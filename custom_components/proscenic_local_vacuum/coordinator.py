@@ -35,14 +35,14 @@ from .const import (
     DPS_SUCTION,
     MODE_SMART,
 )
-from .device import create_device, fetch_status
+from .device import async_scan_lan, create_device, fetch_status
 
 _LOGGER = logging.getLogger(__name__)
 
 COMMAND_RETRY_DELAY = 0.5  # seconds between retries
 MAX_COMMAND_RETRIES = 3
 
-# LAN rediscovery (tinytuya.find_device) can be slow; avoid hammering the network.
+# LAN rediscovery can take up to SCAN_TIME; avoid hammering the network.
 HOST_RESOLVE_COOLDOWN = timedelta(minutes=5)
 
 type ProscenicConfigEntry = ConfigEntry[ProscenicLocalCoordinator]
@@ -105,8 +105,8 @@ class ProscenicLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_try_resolve_host(self) -> bool:
         """Find the vacuum on the LAN after a failed poll; persist host if it changed.
 
-        Home Assistant does not expose a supported on-demand MAC→IP lookup for
-        arbitrary integrations; Tuya devices respond to tinytuya discovery by ID.
+        Tuya broadcasts carry the device ID but usually not the MAC, so the device
+        is matched by ID; the stored MAC is only checked when a broadcast has one.
 
         Returns:
             True if the host was updated and the caller should retry immediately.
@@ -120,25 +120,28 @@ class ProscenicLocalCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self._last_host_resolve_attempt = now
 
-        found = await self.hass.async_add_executor_job(
-            tinytuya.find_device, self.device_id
+        found = next(
+            (
+                device
+                for device in await async_scan_lan(self.hass, self.device_id)
+                if device.device_id == self.device_id
+            ),
+            None,
         )
-        new_ip = found.get("ip") if found else None
-        if not new_ip:
+        if found is None:
             _LOGGER.debug("LAN discovery did not find device %s", self.device_id)
             return False
 
-        payload = found.get("data")
-        discovered_mac = payload.get("mac") if isinstance(payload, dict) else None
-        if not self._mac_matches_discovered(discovered_mac):
+        if not self._mac_matches_discovered(found.mac):
             _LOGGER.warning(
                 "Ignoring LAN discovery result for %s: MAC mismatch (expected %s, got %s)",
                 self.device_id,
                 self.device_mac,
-                discovered_mac,
+                found.mac,
             )
             return False
 
+        new_ip = found.ip
         if new_ip == self._host:
             return False
 

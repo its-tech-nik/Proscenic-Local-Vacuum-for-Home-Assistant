@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     FAN_SPEEDS,
+    STATUS_CHARGE_DONE,
     STATUS_CHARGING,
     STATUS_GOTO_CHARGE,
     STATUS_PAUSED,
@@ -32,6 +33,7 @@ STATUS_TO_ACTIVITY = {
     STATUS_GOTO_CHARGE: VacuumActivity.RETURNING,
     STATUS_SLEEP: VacuumActivity.IDLE,
     STATUS_CHARGING: VacuumActivity.DOCKED,
+    STATUS_CHARGE_DONE: VacuumActivity.DOCKED,
     # STATUS_STANDBY is not mapped - HA doesn't have a standby state
 }
 

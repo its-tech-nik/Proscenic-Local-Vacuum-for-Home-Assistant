@@ -60,6 +60,7 @@ STATUS_PAUSED: Final = "paused"
 STATUS_SMART: Final = "smart"
 STATUS_GOTO_CHARGE: Final = "goto_charge"
 STATUS_CHARGING: Final = "charging"
+STATUS_CHARGE_DONE: Final = "charge_done"
 
 # Suction power levels (DPS 9)
 SUCTION_GENTLE: Final = "gentle"
